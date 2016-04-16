@@ -1,0 +1,30 @@
+language: node_js
+matrix:
+  include:
+  - os: linux
+    sudo: required
+    dist: trusty
+    compiler: g++
+    env: CXX=g++-4.9 NODE_VERSION=5
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gdb
+    - g++-4.9
+    - gcc-4.9
+    - libllvm3.4
+    - xutils-dev
+    - libxi-dev
+    - libxxf86vm-dev
+    - x11proto-xf86vidmode-dev
+    - mesa-utils
+    - xvfb
+    - libgl1-mesa-dri
+    - libglapi-mesa
+    - libosmesa6
+node_js:
+  - '5'
+before_script:
+  - export DISPLAY=:99.0; sh -e /etc/init.d/xvfb start
