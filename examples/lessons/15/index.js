@@ -3,7 +3,7 @@ var webGLStart = function() {
 
   var createGLContext = LumaGL.createGLContext;
   var loadTextures = LumaGL.loadTextures;
-  var Program = LumaGL.Program;
+  var makeProgramFromShaderURIs = LumaGL.addons.makeProgramFromShaderURIs;
   var PerspectiveCamera = LumaGL.PerspectiveCamera;
   var Scene = LumaGL.Scene;
   var Fx = LumaGL.Fx;
@@ -27,12 +27,12 @@ var webGLStart = function() {
 
   Promise.all([
 
-    Program.fromShaderURIs(gl, 'spec-map.vs.glsl', 'spec-map.fs.glsl', {
-      path: '../../../shaders/',
+    makeProgramFromShaderURIs(gl, 'spec-map.vs.glsl', 'spec-map.fs.glsl', {
+      path: '../../../shaders/'
     }),
 
     loadTextures(gl, {
-      src: ['earth.jpg', 'earth-specular.gif'],
+      urls: ['earth.jpg', 'earth-specular.gif'],
       parameters: [{
         magFilter: gl.LINEAR,
         minFilter: gl.LINEAR_MIPMAP_NEAREST,

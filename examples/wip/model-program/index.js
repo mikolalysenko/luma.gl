@@ -17,7 +17,7 @@ var webGLStart = function() {
   var gl = createGLContext(canvas);
 
   loadTextures(gl, {
-    src: ['crate.gif'],
+    urls: ['crate.gif'],
     parameters: [{
       magFilter: gl.LINEAR,
       minFilter: gl.LINEAR_MIPMAP_NEAREST,
@@ -33,7 +33,7 @@ var webGLStart = function() {
 
     //Create object
     var cube = new Model({
-      program: Program.fromDefaultShaders(gl),
+      program: makeProgramFromDefaultShaders(gl),
       vertices: [-1, -1,  1,
                   1, -1,  1,
                   1,  1,  1,

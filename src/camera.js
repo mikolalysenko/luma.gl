@@ -4,9 +4,9 @@
 import {Vec3, Mat4} from './math';
 import {merge} from './utils';
 
-class Camera {
+export class Camera {
 
-  constructor(opts) {
+  constructor(opts = {}) {
     opts = merge({
       fov: 45,
       near: 0.1,
@@ -24,21 +24,29 @@ class Camera {
     this.target = opts.target;
     this.up = opts.up;
     this.view = new Mat4();
+    this.uniforms = {};
+
+    this.projection = new Mat4();
+    Object.seal(this);
+
     this.update();
   }
 
-  setStatus(program) {
-    const pos = this.position;
+  getUniforms() {
+    return this.uniforms;
+  }
+
+  _updateUniforms() {
     const viewProjection = this.view.mulMat4(this.projection);
     const viewProjectionInverse = viewProjection.invert();
-    program.setUniforms({
-      cameraPosition: [pos.x, pos.y, pos.z],
+    this.uniforms = {
+      cameraPosition: this.position,
       projectionMatrix: this.projection,
       viewMatrix: this.view,
       viewProjectionMatrix: viewProjection,
       viewInverseMatrix: this.view.invert(),
       viewProjectionInverseMatrix: viewProjectionInverse
-    });
+    };
   }
 
 }
@@ -49,6 +57,7 @@ export class PerspectiveCamera extends Camera {
     this.projection =
       new Mat4().perspective(this.fov, this.aspect, this.near, this.far);
     this.view.lookAt(this.position, this.target, this.up);
+    this._updateUniforms();
   }
 
 }
@@ -63,6 +72,7 @@ export class OrthoCamera {
     this.projection =
       new Mat4().ortho(xmin, xmax, ymin, ymax, this.near, this.far);
     this.view.lookAt(this.position, this.target, this.up);
+    this._updateUniforms();
   }
 
 }

@@ -3,72 +3,57 @@
 
 /* eslint-disable no-console, complexity */
 
-/* global document, console */
-import {merge, uid} from '../utils';
-import formatCompilerError from 'gl-format-compiler-error';
-
-// TODO - remove this functionality, should not depend on upper layers
-import {XHRGroup} from '../io';
+import {glCheckError} from './context';
+import {uid} from '../utils';
+import {VertexShader, FragmentShader} from './shader';
 import Shaders from '../shaders';
+import assert from 'assert';
 
 export default class Program {
 
   /*
-   * @classdesc Handles loading of programs, mapping of attributes and uniforms
+   * @classdesc
+   * Handles creation of programs, mapping of attributes and uniforms
+   *
+   * @class
+   * @param {WebGLRenderingContext} gl - gl context
+   * @param {Object} opts - options
+   * @param {String} opts.vs - Vertex shader source
+   * @param {String} opts.fs - Fragment shader source
+   * @param {String} opts.id= - Id
    */
-  constructor(gl, vertexShader, fragmentShader, id) {
-    const glProgram = createProgram(gl, vertexShader, fragmentShader);
-    if (!glProgram) {
+  constructor(gl, {
+    vs = Shaders.Vertex.Default,
+    fs = Shaders.Fragment.Default,
+    id = uid()
+  } = {}, ...args) {
+    assert(gl, 'Program needs WebGLRenderingContext');
+
+    if (arguments.length !== 2) {
+      throw new Error('Wrong number of arguments to Program(gl, {vs, fs, id})');
+    }
+
+    const program = gl.createProgram();
+    if (!program) {
       throw new Error('Failed to create program');
     }
 
-    this.gl = gl;
-    this.program = glProgram;
-    this.id = id || uid();
+    gl.attachShader(program, new VertexShader(gl, vs).handle);
+    gl.attachShader(program, new FragmentShader(gl, fs).handle);
+    gl.linkProgram(program);
+    const linked = gl.getProgramParameter(program, gl.LINK_STATUS);
+    if (!linked) {
+      throw new Error(`Error linking ${gl.getProgramInfoLog(program)}`);
+    }
 
+    this.gl = gl;
+    this.program = program;
     // determine attribute locations (i.e. indices)
-    this.attributeLocations = getAttributeLocations(gl, glProgram);
-    console.log(`${id} locations`, this.attributeLocations);
+    this.attributeLocations = getAttributeLocations(gl, program);
     // prepare uniform setters
-    this.uniformSetters = getUniformSetters(gl, glProgram);
+    this.uniformSetters = getUniformSetters(gl, program);
     // no attributes enabled yet
     this.attributeEnabled = {};
-  }
-
-  // Alternate constructor
-  // Create a program from vertex and fragment shader node ids
-  static fromHTMLTemplates(gl, vs, fs) {
-    const vertexShader = document.getElementById(vs).innerHTML;
-    const fragmentShader = document.getElementById(fs).innerHTML;
-    return new Program(gl, vertexShader, fragmentShader);
-  }
-
-  // Alternate constructor
-  // Build program from default shaders (requires Shaders)
-  static fromDefaultShaders(gl) {
-    return new Program(gl,
-      Shaders.Vertex.Default,
-      Shaders.Fragment.Default
-    );
-  }
-
-  // Alternate constructor
-  static async fromShaderURIs(gl, vs, fs, opts) {
-    opts = merge({
-      path: '/',
-      noCache: false
-    }, opts);
-
-    const vertexShaderURI = opts.path + vs;
-    const fragmentShaderURI = opts.path + fs;
-
-    const responses = await new XHRGroup({
-      urls: [vertexShaderURI, fragmentShaderURI],
-      noCache: opts.noCache
-    }).sendAsync();
-
-    return new Program(gl, responses[0], responses[1]);
-
   }
 
   use() {
@@ -82,10 +67,7 @@ export default class Program {
   }
 
   setUniform(name, value) {
-    if (name in this.uniformSetters) {
-      this.uniformSetters[name](value);
-    }
-    return this;
+    throw new Error('Use setUniforms instead');
   }
 
   setUniforms(uniformMap) {
@@ -103,7 +85,8 @@ export default class Program {
     return this;
   }
 
-  setBuffers(...buffers) {
+  setBuffers(buffers) {
+    assert(Array.isArray(buffers), 'Program.setBuffers expects array');
     buffers = buffers.length === 1 && Array.isArray(buffers[0]) ?
       buffers[0] : buffers;
     for (const buffer of buffers) {
@@ -118,7 +101,8 @@ export default class Program {
     return this;
   }
 
-  unsetBuffers(...buffers) {
+  unsetBuffers(buffers) {
+    assert(Array.isArray(buffers), 'Program.setBuffers expects array');
     buffers = buffers.length === 1 && Array.isArray(buffers[0]) ?
       buffers[0] : buffers;
     for (const buffer of buffers) {
@@ -129,62 +113,15 @@ export default class Program {
 
 }
 
-// Creates a shader from a string source.
-function createShader(gl, shaderSource, shaderType) {
-  var shader = gl.createShader(shaderType);
-  if (shader === null) {
-    throw new Error(`Error creating shader with type ${shaderType}`);
-  }
-  gl.shaderSource(shader, shaderSource);
-  gl.compileShader(shader);
-  var compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
-  if (!compiled) {
-    var info = gl.getShaderInfoLog(shader);
-    gl.deleteShader(shader);
-    /* eslint-disable no-try-catch */
-    var formattedLog;
-    try {
-      formattedLog = formatCompilerError(info, shaderSource, shaderType);
-    } catch (error) {
-      /* eslint-disable no-console */
-      /* global console */
-      console.warn('Error formatting glsl compiler error:', error);
-      /* eslint-enable no-console */
-      throw new Error(`Error while compiling the shader ${info}`);
-    }
-    /* eslint-enable no-try-catch */
-    throw new Error(formattedLog.long);
-  }
-  return shader;
-}
-
-// Creates a program from vertex and fragment shader sources.
-function createProgram(gl, vertexShader, fragmentShader) {
-  const vs = createShader(gl, vertexShader, gl.VERTEX_SHADER);
-  const fs = createShader(gl, fragmentShader, gl.FRAGMENT_SHADER);
-
-  const glProgram = gl.createProgram();
-  gl.attachShader(glProgram, vs);
-  gl.attachShader(glProgram, fs);
-
-  gl.linkProgram(glProgram);
-  const linked = gl.getProgramParameter(glProgram, gl.LINK_STATUS);
-  if (!linked) {
-    throw new Error(`Error linking shader ${gl.getProgramInfoLog(glProgram)}`);
-  }
-
-  return glProgram;
-}
-
 // TODO - use tables to reduce complexity of method below
 // const glUniformSetter = {
-//   FLOAT: {function: 'uniform1fv', type: Float32Array},
-//   FLOAT_VEC3: {function: 'uniform3fv', type: Float32Array},
-//   FLOAT_MAT4: {function: 'uniformMatrix4fv', type: Float32Array},
-//   INT: {function: 'uniform1iv', type: Uint16Array},
-//   BOOL: {function: 'uniform1iv', type: Uint16Array},
-//   SAMPLER_2D: {function: 'uniform1iv', type: Uint16Array},
-//   SAMPLER_CUBE: {function: 'uniform1iv', type: Uint16Array}
+// FLOAT: {function: 'uniform1fv', type: Float32Array},
+// FLOAT_VEC3: {function: 'uniform3fv', type: Float32Array},
+// FLOAT_MAT4: {function: 'uniformMatrix4fv', type: Float32Array},
+// INT: {function: 'uniform1iv', type: Uint16Array},
+// BOOL: {function: 'uniform1iv', type: Uint16Array},
+// SAMPLER_2D: {function: 'uniform1iv', type: Uint16Array},
+// SAMPLER_CUBE: {function: 'uniform1iv', type: Uint16Array}
 // };
 
 // Returns a Magic Uniform Setter
@@ -287,11 +224,16 @@ function getUniformSetter(gl, glProgram, info, isArray) {
   // Set a uniform array
   if (isArray && TypedArray) {
 
-    return val => glFunction(loc, new TypedArray(val));
-
+    return val => {
+      glFunction(loc, new TypedArray(val));
+      glCheckError(gl);
+    };
   } else if (matrix) {
     // Set a matrix uniform
-    return val => glFunction(loc, false, val.toFloat32Array());
+    return val => {
+      glFunction(loc, false, val.toFloat32Array());
+      glCheckError(gl);
+    };
 
   } else if (TypedArray) {
 
@@ -299,11 +241,15 @@ function getUniformSetter(gl, glProgram, info, isArray) {
     return val => {
       TypedArray.set(val.toFloat32Array ? val.toFloat32Array() : val);
       glFunction(loc, TypedArray);
+      glCheckError(gl);
     };
 
   }
   // Set a primitive-valued uniform
-  return val => glFunction(loc, val);
+  return val => {
+    glFunction(loc, val);
+    glCheckError(gl);
+  };
 
 }
 

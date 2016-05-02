@@ -1,31 +1,40 @@
+/* eslint-disable */
+// TODO - generic draw call
 // One of the good things about GL is that there are so many ways to draw things
 import {getExtension} from './context';
+import {GL_INDEX_TYPES, GL_DRAW_MODES} from './types';
+import assert from 'assert';
 
-// Call the proper draw function for the used program based on attributes etc
-export function draw({gl, drawType, attributes, instanced, numInstances}) {
-  const {indices, vertices} = attributes;
-  // TODO - shouldn't the caller do this lookup
-  drawType = drawType ? gl.get(drawType) : gl.POINTS;
+// A good thing about webGL is that there are so many ways to draw things,
+// depending on whether data is indexed and/or instanced.
+// This function unifies those into a single call with simple parameters
+// that have sane defaults.
+export function draw(gl, {
+  drawMode = null, vertexCount, offset = 0,
+  indexed, indexType = null,
+  instanced = false, instanceCount = 0
+}) {
+  drawMode = drawMode ? gl.get(drawMode) : gl.TRIANGLES;
+  indexType = indexType ? gl.get(indexType) : gl.UNSIGNED_SHORT;
 
-  const numIndices = indices ? indices.value.length : 0;
+  assert(GL_DRAW_MODES(gl).indexOf(drawMode) > -1, 'Invalid draw mode');
+  assert(GL_INDEX_TYPES(gl).indexOf(indexType) > -1, 'Invalid index type');
 
-  if (instanced && indices) {
-    // this instanced primitive does has indices, use drawElements extension
-    const extension = getExtension('ANGLE_instanced_arrays');
-    extension.drawElementsInstancedANGLE(
-      drawType, numIndices, gl.UNSIGNED_SHORT, 0, numInstances
-    );
-  } else if (instanced) {
-    // this instanced primitive does not have indices, use drawArrays ext
-    const extension = getExtension('ANGLE_instanced_arrays');
-    const numVertices = vertices ? vertices.value.length : 0;
-    extension.drawArraysInstancedANGLE(
-      drawType, 0, numVertices / 3, numInstances
-    );
-  } else if (attributes.indices) {
-    gl.drawElements(drawType, numIndices, gl.UNSIGNED_SHORT, 0);
+  // TODO - Use polyfilled WebGL2RenderingContext instead of ANGLE extension
+  if (instanced) {
+    const extension = gl.getExtension('ANGLE_instanced_arrays');
+    if (indexed) {
+      extension.drawElementsInstancedANGLE(
+        drawMode, vertexCount, indexType, offset, instanceCount
+      );
+    } else {
+      extension.drawArraysInstancedANGLE(
+        drawMode, offset, vertexCount, instanceCount
+      );
+    }
+  } else if (indexed) {
+    gl.drawElements(drawMode, vertexCount, indexType, offset);
   } else {
-    // else if this.primitive does not have indices
-    gl.drawArrays(drawType, 0, numInstances);
+    gl.drawArrays(drawMode, offset, vertexCount);
   }
 }

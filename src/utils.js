@@ -1,4 +1,5 @@
 /* eslint-disable guard-for-in */
+import assert from 'assert';
 
 /**
  * Wraps the argument in an array if it is not one.
@@ -14,7 +15,7 @@ export function splat(a) {
 **/
 export function noop() {}
 
-var _uid = Date.now();
+let _uid = Date.now();
 
 /**
  * Returns a UID.
@@ -33,10 +34,11 @@ export function merge(objects) {
   const mix = {};
   for (let i = 0, l = arguments.length; i < l; i++) {
     const object = arguments[i];
-    if (object.constructor.name !== 'Object') {
+    if (!object || object.constructor.name !== 'Object') {
+      /* eslint-disable no-continue */
       continue;
     }
-    for (var key in object) {
+    for (const key in object) {
       const op = object[key];
       const mp = mix[key];
       if (mp && op.constructor.name === 'Object' &&
@@ -60,12 +62,12 @@ function detach(elem) {
   let ans;
   if (t === 'Object') {
     ans = {};
-    for (var p in elem) {
+    for (const p in elem) {
       ans[p] = detach(elem[p]);
     }
   } else if (t === 'Array') {
     ans = [];
-    for (var i = 0, l = elem.length; i < l; i++) {
+    for (let i = 0, l = elem.length; i < l; i++) {
       ans[i] = detach(elem[i]);
     }
   } else {
@@ -73,4 +75,19 @@ function detach(elem) {
   }
 
   return ans;
+}
+
+// TYPED ARRAYS
+
+export function isTypedArray(value) {
+  return value.BYTES_PER_ELEMENT;
+}
+
+export function makeTypedArray(ArrayType, sourceArray) {
+  assert(Array.isArray(sourceArray));
+  const array = new ArrayType(sourceArray.length);
+  for (let i = 0; i < sourceArray.length; ++i) {
+    array[i] = sourceArray[i];
+  }
+  return array;
 }
